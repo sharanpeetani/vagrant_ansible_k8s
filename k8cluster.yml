@@ -1,96 +1,88 @@
 ---
 - hosts: all
-  become: yes   
-  roles: 
+  become: yes
+  roles:
     - k8cluster
 
 
 # Perfom this on master
-- hosts: masternode
+- hosts: k8smaster
   become: yes
   tasks:
-    - name: Install Kubectl  
-      get_url:
-        url: https://storage.googleapis.com/kubernetes-release/release/v1.10.0/bin/linux/amd64/kubectl
-        dest: /usr/local/bin/kubectl
-        mode: 0755 
-      tags: master
-        
-    - name: initialize the cluster
-      shell: kubeadm init --pod-network-cidr=10.244.0.0/16 --apiserver-advertise-address=172.28.128.10
-      tags: master
-      
-      
-    - name: Update node port range
-      lineinfile:
-        path: /etc/kubernetes/manifests/kube-apiserver.yaml
-        regexp: '(.*service-cluster-ip-range.*)$'
-        insertafter: '(.*service-cluster-ip-range.*)$'
-        line: '    - --service-node-port-range=8000-32767'
-      tags: 
-        - master
-        - kubeapi
-               
+  - name: Install Kubectl
+    get_url:
+      url: https://storage.googleapis.com/kubernetes-release/release/v1.10.0/bin/linux/amd64/kubectl
+      dest: /usr/local/bin/kubectl
+      mode: 0755
+    tags: master
 
-    - name: create .kube directory
-      become_user: vagrant
-      file:
-        path: $HOME/.kube
-        state: directory
-        mode: 0755
-      tags: master
-        
-    - name: copy admin.conf to user's kube config
-      copy:
-        src: /etc/kubernetes/admin.conf
-        dest: /home/vagrant/.kube/config
-        remote_src: yes
-        owner: vagrant
-      tags: master
+  - name: initialize the cluster
+    shell: kubeadm init --pod-network-cidr=10.244.0.0/16 --apiserver-advertise-address=172.28.128.10
+    tags: master
 
-    - name: Download pod network file
-      get_url:
-        url: https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
-        dest: /tmp/kube-flannel.yml
-        owner: vagrant
-      
-      
-    - name: Install Pod network
-      become_user: vagrant
-      shell: |
-        kubectl apply -f /tmp/kube-flannel.yml
-      tags: 
-        - master
-    
-    - name: Generate join command
-      command: kubeadm token create --print-join-command
-      register: join_command_raw
-      tags: 
-        - master
-        - node
+  - name: Update node port range
+    lineinfile:
+      path: /etc/kubernetes/manifests/kube-apiserver.yaml
+      regexp: '(.*service-cluster-ip-range.*)$'
+      insertafter: '(.*service-cluster-ip-range.*)$'
+      line: '    - --service-node-port-range=8000-32767'
+    tags:
+      - master
+      - kubeapi
 
-    - name: set join command
-      set_fact:
-        join_command: "{{ join_command_raw.stdout_lines[0] }}"
-      tags: 
-        - master
-        - node
+  - name: create .kube directory
+    become_user: vagrant
+    file:
+      path: $HOME/.kube
+      state: directory
+      mode: 0755
+    tags: master
 
-    - debug:
-        var: hostvars['masternode'].join_command
-      tags: 
-        - master
-        - node
-    
+  - name: copy admin.conf to user's kube config
+    copy:
+      src: /etc/kubernetes/admin.conf
+      dest: /home/vagrant/.kube/config
+      remote_src: yes
+      owner: vagrant
+    tags: master
+
+  - name: Download pod network file
+    get_url:
+      url: https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
+      dest: /tmp/kube-flannel.yml
+      owner: vagrant
+
+  - name: Install Pod network
+    become_user: vagrant
+    shell: |
+      kubectl apply -f /tmp/kube-flannel.yml
+    tags:
+      - master
+
+  - name: Generate join command
+    command: kubeadm token create --print-join-command
+    register: join_command_raw
+    tags:
+      - master
+      - node
+
+  - name: set join command
+    set_fact:
+      join_command: "{{ join_command_raw.stdout_lines[0] }}"
+    tags:
+      - master
+      - node
+
+  - debug:
+      var: hostvars['k8smaster'].join_command
+    tags:
+      - master
+      - node
 
  # Perform this on worker nodes
-- hosts: node1:node2
+- hosts: k8snode1:k8snode2
   become: yes
   tasks:
-    - name: Join the nodes to the cluster
-      shell: "{{ hostvars['masternode'].join_command }} --ignore-preflight-errors all"
-      tags: node
-
-
-
-   
+  - name: Join the nodes to the cluster
+    shell: "{{ hostvars['k8smaster'].join_command }} --ignore-preflight-errors all"
+    tags: node

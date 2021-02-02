@@ -18,17 +18,18 @@
     state: stopped
     enabled: no
   tags: cluster
-    
+
 - name: Disable Firewalld & Iptables
   shell: |
     iptables --flush
     iptables -tnat --flush
   tags: cluster
-             
+
 - name: Disabling Swap on all nodes
   command: swapoff -a
+  when: ansible_swaptotal_mb > 0
   tags: cluster
-  
+
 - name: disable SELinux
   command: setenforce 0
   ignore_errors: yes
@@ -44,24 +45,24 @@
   replace:
     path: /etc/fstab
     regexp: '^(.*swap+.*)$'
-    replace: '# \1'  
-  tags: 
+    replace: '# \1'
+  tags:
     - cluster
-    - swap  
+    - swap
 
 - name: Install necessary packages
   yum:
     name: ['yum-utils','device-mapper-persistent-data','lvm2','git','yum-plugin-versionlock','vim','net-tools']
     state: present
   tags: cluster
-    
+
 - name: Add docker group
   group:
     name: docker
     state: present
   tags: cluster
-    
-   
+
+
 - name: add Kubernetes' YUM repository
   yum_repository:
     name: Kubernetes
@@ -90,7 +91,7 @@
     enabled: true
   loop:
     - kubelet
-    - docker  
+    - docker
   tags: cluster
 
 - name: Lock versions
