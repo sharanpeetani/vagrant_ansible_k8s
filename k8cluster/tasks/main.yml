@@ -1,0 +1,98 @@
+---
+# tasks file for k8cluster
+# Perform this on all nodes
+- name: Change various sysctl-settings
+  sysctl:
+    name: '{{ item.key }}'
+    value: '{{ item.value }}'
+    sysctl_set: yes
+    state: present
+    reload: yes
+    ignoreerrors: yes
+  with_dict: '{{ sysctl_config }}'
+  tags: cluster
+
+- name: Disable firewalld
+  service:
+    name: firewalld
+    state: stopped
+    enabled: no
+  tags: cluster
+    
+- name: Disable Firewalld & Iptables
+  shell: |
+    iptables --flush
+    iptables -tnat --flush
+  tags: cluster
+             
+- name: Disabling Swap on all nodes
+  command: swapoff -a
+  tags: cluster
+  
+- name: disable SELinux
+  command: setenforce 0
+  ignore_errors: yes
+  tags: cluster
+
+- name: disable SELinux on reboot
+  selinux:
+    state: disabled
+  ignore_errors: yes
+  tags: cluster
+
+- name: Commenting Swap entries in /etc/fstab
+  replace:
+    path: /etc/fstab
+    regexp: '^(.*swap+.*)$'
+    replace: '# \1'  
+  tags: 
+    - cluster
+    - swap  
+
+- name: Install necessary packages
+  yum:
+    name: ['yum-utils','device-mapper-persistent-data','lvm2','git','yum-plugin-versionlock','vim','net-tools']
+    state: present
+  tags: cluster
+    
+- name: Add docker group
+  group:
+    name: docker
+    state: present
+  tags: cluster
+    
+   
+- name: add Kubernetes' YUM repository
+  yum_repository:
+    name: Kubernetes
+    description: Kubernetes YUM repository
+    baseurl: https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
+    gpgkey: https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+    gpgcheck: yes
+  tags: cluster
+
+- name: Install kubelet
+  yum:
+    name: ['kubelet-1.10.0']
+    state: present
+  tags: cluster
+
+- name: Install Kubeadm and Docker
+  yum:
+    name: ['docker','kubeadm-1.10.0']
+    state: present
+  tags: cluster
+
+- name: Enable and Start kubelet/Docker service
+  service:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  loop:
+    - kubelet
+    - docker  
+  tags: cluster
+
+- name: Lock versions
+  command: "yum versionlock kube*; yum versionlock docker*"
+  tags: cluster
