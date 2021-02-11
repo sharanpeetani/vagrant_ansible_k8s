@@ -116,3 +116,7 @@ From the project folder, run the following commands, one after the other.
    `vagrant up`
 
 2. vagrant will start playbook once all nodes are deployed successfully
+
+# Author
+
+Maithili Peetani
